@@ -68,13 +68,11 @@ body {
     place-content: center;
     min-width: 320px;
     min-height: 100vh;
-}
-
-.container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    background-image: url('/background.jpg'); /* 将 '/background.jpg' 替换为你的图片路径 */
+    background-size: cover; /* 使图片覆盖整个背景 */
+    background-repeat: no-repeat; /* 防止图片重复 */
+    background-position: center center; /* 将图片居中 */
+    background-attachment: fixed; /* 固定背景，使其不随滚动条滚动 */
 }
 
 h1 {
@@ -85,36 +83,10 @@ h1 {
 #app {
     max-width: 1280px;
     margin: 0 auto;
-    padding: 2rem;
     text-align: center;
 }
 
-.logo {
-    height: 6em;
-    padding: 1.5em;
-    will-change: filter;
-}
 
-.logo:hover {
-    filter: drop-shadow(0 0 2em #e80000aa);
-}
-
-.logo.react:hover {
-    filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-.result {
-    height: 20px;
-    line-height: 20px;
-    margin: 1.5rem auto;
-    text-align: center;
-}
-
-.footer {
-    margin-top: 1rem;
-    align-content: center;
-    text-align: center;
-}
 
 @media (prefers-color-scheme: light) {
     :root {

@@ -17,7 +17,7 @@ tasks:
       - node_modules/*
     preconditions:
       - sh: bun -version
-        msg: "Looks like bun isn't installed. https://bun.sh/"
+        msg: "Looks like bun isn't installed. See https://bun.sh/"
     cmds:
       - bun install
 

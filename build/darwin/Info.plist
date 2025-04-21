@@ -6,9 +6,9 @@
         <key>CFBundleName</key>
         <string>My Product</string>
         <key>CFBundleExecutable</key>
-        <string>vtuber.exe</string>
+        <string>aivtuber.exe</string>
         <key>CFBundleIdentifier</key>
-        <string>com.wails.vtuber</string>
+        <string>com.wails.aivtuber</string>
         <key>CFBundleVersion</key>
         <string>0.1.0</string>
         <key>CFBundleGetInfoString</key>

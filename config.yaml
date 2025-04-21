@@ -1,0 +1,18 @@
+# 哔哩哔哩直播平台配置
+bilibili:
+  live_api:
+    base_url: https://live-open.biliapi.com
+    access_key_id: YOUR_ACCESS_KEY_ID
+    access_key_secret: YOUR_ACCESS_KEY_SECRET
+    app_id: YOUR_APP_ID
+    id_code: YOUR_ID_CODE
+
+# 智谱AI模型配置
+zhipu_ai:
+  api_url: https://open.bigmodel.cn/api/paas/v4/chat/completions
+  api_token: YOUR_ZHIPU_API_TOKEN
+  models:
+    voice:
+      name: glm-4-voice
+      system_prompt: "从现在开始你将作为一个性格开朗的AI主播与观众进行对话。"
+      max_context_length: 10 # 添加最大对话长度配置，超过此值将裁剪旧对话

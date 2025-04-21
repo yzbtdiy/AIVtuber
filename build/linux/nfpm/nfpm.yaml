@@ -3,7 +3,7 @@
 #
 # The lines below are called `modelines`. See `:help modeline`
 
-name: "vtuber.exe"
+name: "aivtuber.exe"
 arch: ${GOARCH}
 platform: "linux"
 version: "0.1.0"
@@ -17,12 +17,12 @@ license: "MIT"
 release: "1"
 
 contents:
-  - src: "./bin/vtuber.exe"
-    dst: "/usr/local/bin/vtuber.exe"
+  - src: "./bin/aivtuber.exe"
+    dst: "/usr/local/bin/aivtuber.exe"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/vtuber.exe.png"
-  - src: "./build/linux/vtuber.exe.desktop"
-    dst: "/usr/share/applications/vtuber.exe.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/aivtuber.exe.png"
+  - src: "./build/linux/aivtuber.exe.desktop"
+    dst: "/usr/share/applications/aivtuber.exe.desktop"
 
 depends:
   - gtk3
