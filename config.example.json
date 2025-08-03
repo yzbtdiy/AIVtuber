@@ -1,7 +1,0 @@
-{
-  "id_code": "YOUR_ID_CODE_HERE",
-  "app_id": 1234567890987,
-  "access_key": "YOUR_ACCESS_KEY_HERE",
-  "access_secret": "YOUR_ACCESS_SECRET_HERE",
-  "host": "https://live-open.biliapi.com"
-}

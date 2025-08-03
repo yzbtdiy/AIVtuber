@@ -1,25 +1,16 @@
-# AIVtuber-tauri
+# AIVtuber
 
-基于 Tauri + Vue.js + Rust 的哔哩哔哩直播间消息接收工具
+> 本项目绝大多数代码都由Claude4生成
+
+基于 Tauri + Vue.js + Three VRM + Rust 的哔哩哔哩虚拟主播
 
 ## 项目简介
 
-这是一个用于接收哔哩哔哩直播间实时消息的桌面应用程序。通过哔哩哔哩开放平台的API，可以实时接收弹幕、礼物、醒目留言、大航海、点赞等各种直播间消息。
+这是一个用于接收哔哩哔哩直播间实时消息的桌面应用程序。通过哔哩哔哩开放平台的API，可以实时接收弹幕、礼物、醒目留言、大航海、点赞等各种直播间消息，大语言模型理解和生成回应内容，语音合成将文本转换为虚拟角色的声音，虚拟形象能够做出相应的表情和动作。
 
 ## 功能特性
 
-- 🎯 **实时消息接收**：支持接收10种消息类型
-  - 弹幕消息 (LIVE_OPEN_PLATFORM_DM)
-  - 礼物消息 (LIVE_OPEN_PLATFORM_SEND_GIFT)
-  - 醒目留言 (LIVE_OPEN_PLATFORM_SUPER_CHAT)
-  - 醒目留言删除 (LIVE_OPEN_PLATFORM_SUPER_CHAT_DEL)
-  - 大航海 (LIVE_OPEN_PLATFORM_GUARD)
-  - 点赞 (LIVE_OPEN_PLATFORM_LIKE)
-  - 进入直播间 (LIVE_OPEN_PLATFORM_LIVE_ROOM_ENTER)
-  - 开始直播 (LIVE_OPEN_PLATFORM_LIVE_START)
-  - 结束直播 (LIVE_OPEN_PLATFORM_LIVE_END)
-  - 消息推送结束 (LIVE_OPEN_PLATFORM_INTERACTION_END)
-- 🔐 **安全连接**：使用HMAC-SHA256签名确保API调用安全
+- 🎯 **实时消息接收**：支持接收哔哩哔哩直播间多种消息类型
 - 💾 **消息管理**：消息历史记录和清空功能（最多保存100条）
 - 🎨 **现代UI**：基于Vue.js的现代化用户界面
 - ⚡ **高性能**：Rust后端确保高性能和低资源占用
@@ -46,7 +37,7 @@
 
 ```bash
 git clone <项目地址>
-cd AIVtuber-tauri
+cd AIVtuber
 ```
 
 ### 安装依赖
@@ -87,20 +78,21 @@ bun run tauri build
 4. 连接成功后，开始直播，消息会实时显示在下方的消息区域
 5. 使用完毕后记得点击"断开连接"
 
-## 支持的消息类型
+### 消息类型
 
-详细的消息类型说明请参考 [SUPPORTED_MESSAGE_TYPES.md](SUPPORTED_MESSAGE_TYPES.md)
-
-### 核心消息类型
-- **弹幕消息**: 实时接收用户弹幕，支持表情包和@功能
-- **礼物消息**: 接收礼物信息，支持连击礼物和盲盒礼物
-- **醒目留言**: 接收付费醒目留言和删除通知
-- **大航海**: 接收用户购买大航海的信息
-- **点赞消息**: 接收用户点赞信息（2秒聚合）
-- **直播状态**: 接收开播、下播和用户进入直播间的信息
-- **系统消息**: 接收推送结束等系统级消息
+- 弹幕消息 (LIVE_OPEN_PLATFORM_DM)
+- 礼物消息 (LIVE_OPEN_PLATFORM_SEND_GIFT)
+- 醒目留言 (LIVE_OPEN_PLATFORM_SUPER_CHAT)
+- 醒目留言删除 (LIVE_OPEN_PLATFORM_SUPER_CHAT_DEL)
+- 大航海 (LIVE_OPEN_PLATFORM_GUARD)
+- 点赞 (LIVE_OPEN_PLATFORM_LIKE)
+- 进入直播间 (LIVE_OPEN_PLATFORM_LIVE_ROOM_ENTER)
+- 开始直播 (LIVE_OPEN_PLATFORM_LIVE_START)
+- 结束直播 (LIVE_OPEN_PLATFORM_LIVE_END)
+- 消息推送结束 (LIVE_OPEN_PLATFORM_INTERACTION_END)
 
 ### 消息显示格式
+
 - `[弹幕] 用户名: 弹幕内容`
 - `[礼物] 用户名 送出了 3 个 小花花`
 - `[醒目留言] 用户名: 留言内容 (50元)`

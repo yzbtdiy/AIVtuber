@@ -11,6 +11,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
+use tokio::sync::broadcast;
 use tokio::time::Duration;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
@@ -154,6 +155,10 @@ pub struct BilibiliClient {
     config: BilibiliConfig,
     client: Client,
     game_id: Option<String>,
+    // 用于控制心跳任务停止的取消令牌
+    heartbeat_cancel_tx: Option<broadcast::Sender<()>>,
+    // 用于保存WebSocket连接，便于主动关闭
+    ws_sink: Option<Arc<tokio::sync::Mutex<futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, Message>>>>,
 }
 
 impl BilibiliClient {
@@ -162,18 +167,25 @@ impl BilibiliClient {
             config,
             client: Client::new(),
             game_id: None,
+            heartbeat_cancel_tx: None,
+            ws_sink: None,
         }
     }
 
     pub async fn connect(&mut self) -> Result<mpsc::UnboundedReceiver<BilibiliMessage>, BilibiliError> {
+        log::info!("=== 开始连接哔哩哔哩直播间 ===");
         let (sender, receiver) = mpsc::unbounded_channel();
 
         // 获取websocket连接信息
+        log::info!("正在获取WebSocket连接信息...");
         let (ws_url, auth_body) = self.get_websocket_info().await?;
+        log::info!("WebSocket URL: {}", ws_url);
         
         // 连接websocket
+        log::info!("正在连接WebSocket...");
         let url = Url::parse(&ws_url)?;
         let (ws_stream, _) = connect_async(url).await?;
+        log::info!("WebSocket连接成功！");
         
         // 启动各种任务
         self.start_tasks(ws_stream, auth_body, sender).await?;
@@ -182,38 +194,53 @@ impl BilibiliClient {
     }
 
     async fn start_tasks(
-        &self,
+        &mut self,
         ws_stream: tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
         auth_body: String,
         sender: mpsc::UnboundedSender<BilibiliMessage>,
     ) -> Result<(), BilibiliError> {
         let (mut ws_sink, mut ws_stream) = ws_stream.split();
 
+        // 创建心跳取消通道
+        let (cancel_tx, _cancel_rx) = broadcast::channel(1);
+        self.heartbeat_cancel_tx = Some(cancel_tx.clone());
+
         // 发送认证
+        log::info!("正在发送认证信息...");
         let mut auth_proto = Proto::new();
         auth_proto.body = auth_body.into_bytes();
         auth_proto.op = 7;
         let auth_packet = auth_proto.pack();
         
         ws_sink.send(Message::Binary(auth_packet)).await?;
+        log::info!("认证信息发送成功！");
 
-        // 启动心跳任务
+        // 启动WebSocket心跳任务
         let ws_sink = Arc::new(tokio::sync::Mutex::new(ws_sink));
+        self.ws_sink = Some(ws_sink.clone());
         let ws_sink_clone = ws_sink.clone();
+        let mut cancel_rx_ws = cancel_tx.subscribe();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(20));
             loop {
-                interval.tick().await;
-                let mut proto = Proto::new();
-                proto.op = 2;
-                let packet = proto.pack();
-                
-                let mut sink = ws_sink_clone.lock().await;
-                if let Err(e) = sink.send(Message::Binary(packet)).await {
-                    log::error!("发送心跳失败: {}", e);
-                    break;
+                tokio::select! {
+                    _ = interval.tick() => {
+                        let mut proto = Proto::new();
+                        proto.op = 2;
+                        let packet = proto.pack();
+                        
+                        let mut sink = ws_sink_clone.lock().await;
+                        if let Err(e) = sink.send(Message::Binary(packet)).await {
+                            log::error!("发送WebSocket心跳失败: {}", e);
+                            break;
+                        }
+                        log::info!("发送WebSocket心跳成功");
+                    }
+                    _ = cancel_rx_ws.recv() => {
+                        log::info!("WebSocket心跳任务已停止");
+                        break;
+                    }
                 }
-                log::info!("发送WebSocket心跳成功");
             }
         });
 
@@ -221,39 +248,64 @@ impl BilibiliClient {
         let client = self.client.clone();
         let config = self.config.clone();
         let game_id = self.game_id.clone().unwrap();
+        let mut cancel_rx_app = cancel_tx.subscribe();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(20));
             loop {
-                interval.tick().await;
-                let heartbeat_req = HeartbeatRequest {
-                    game_id: game_id.clone(),
-                };
-                
-                match Self::send_app_heartbeat(&client, &config, &heartbeat_req).await {
-                    Ok(_) => log::info!("发送应用心跳成功"),
-                    Err(e) => log::error!("发送应用心跳失败: {}", e),
+                tokio::select! {
+                    _ = interval.tick() => {
+                        let heartbeat_req = HeartbeatRequest {
+                            game_id: game_id.clone(),
+                        };
+                        
+                        match Self::send_app_heartbeat(&client, &config, &heartbeat_req).await {
+                            Ok(_) => log::info!("发送应用心跳成功"),
+                            Err(e) => {
+                                log::error!("发送应用心跳失败: {}", e);
+                                // 如果心跳失败，也停止任务
+                                break;
+                            }
+                        }
+                    }
+                    _ = cancel_rx_app.recv() => {
+                        log::info!("应用心跳任务已停止");
+                        break;
+                    }
                 }
             }
         });
 
         // 启动消息接收任务
+        let mut cancel_rx_msg = cancel_tx.subscribe();
         tokio::spawn(async move {
-            while let Some(msg) = ws_stream.next().await {
-                match msg {
-                    Ok(Message::Binary(data)) => {
-                        if let Err(e) = Self::handle_message(&data, &sender).await {
-                            log::error!("处理消息失败: {}", e);
+            loop {
+                tokio::select! {
+                    msg = ws_stream.next() => {
+                        match msg {
+                            Some(Ok(Message::Binary(data))) => {
+                                if let Err(e) = Self::handle_message(&data, &sender).await {
+                                    log::error!("处理消息失败: {}", e);
+                                }
+                            }
+                            Some(Ok(Message::Close(_))) => {
+                                log::info!("WebSocket连接关闭");
+                                break;
+                            }
+                            Some(Err(e)) => {
+                                log::error!("WebSocket错误: {}", e);
+                                break;
+                            }
+                            None => {
+                                log::info!("WebSocket连接结束");
+                                break;
+                            }
+                            _ => {}
                         }
                     }
-                    Ok(Message::Close(_)) => {
-                        log::info!("WebSocket连接关闭");
+                    _ = cancel_rx_msg.recv() => {
+                        log::info!("消息接收任务已停止");
                         break;
                     }
-                    Err(e) => {
-                        log::error!("WebSocket错误: {}", e);
-                        break;
-                    }
-                    _ => {}
                 }
             }
         });
@@ -296,8 +348,8 @@ impl BilibiliClient {
                 // 首先尝试解析为通用JSON
                 match serde_json::from_str::<Value>(&body_str) {
                     Ok(json_value) => {
-                        log::info!("JSON解析成功，完整消息: {}", 
-                            serde_json::to_string_pretty(&json_value).unwrap_or(json_value.to_string()));
+                        // log::info!("JSON解析成功，完整消息: {}", 
+                        //     serde_json::to_string_pretty(&json_value).unwrap_or(json_value.to_string()));
                         
                         // 提取消息类型
                         if let Some(cmd) = json_value.get("cmd").and_then(|v| v.as_str()) {
@@ -308,6 +360,12 @@ impl BilibiliClient {
                         match serde_json::from_str::<BilibiliMessage>(&body_str) {
                             Ok(message) => {
                                 log::info!("成功解析为BilibiliMessage: {:?}", message);
+                                
+                                // 检查是否是交互结束消息
+                                if matches!(&message, BilibiliMessage::InteractionEnd { .. }) {
+                                    log::info!("收到交互结束消息，连接即将断开");
+                                }
+                                
                                 if sender.send(message).is_err() {
                                     log::error!("发送消息到通道失败");
                                 } else {
@@ -461,8 +519,29 @@ impl BilibiliClient {
         Ok(headers)
     }
 
-    pub async fn close(&self) -> Result<(), BilibiliError> {
+    pub async fn close(&mut self) -> Result<(), BilibiliError> {
+        log::info!("=== 开始断开连接流程 ===");
+        
+        // 首先停止心跳任务
+        if let Some(cancel_tx) = self.heartbeat_cancel_tx.take() {
+            log::info!("正在停止心跳任务...");
+            let _ = cancel_tx.send(());
+        }
+
+        // 主动关闭WebSocket连接
+        if let Some(ws_sink) = self.ws_sink.take() {
+            log::info!("正在关闭WebSocket连接...");
+            let mut sink = ws_sink.lock().await;
+            if let Err(e) = sink.close().await {
+                log::warn!("关闭WebSocket连接失败: {}", e);
+            } else {
+                log::info!("WebSocket连接已关闭");
+            }
+        }
+
+        // 然后关闭应用连接
         if let Some(game_id) = &self.game_id {
+            log::info!("正在关闭应用连接...");
             let url = format!("{}/v2/app/end", self.config.host);
             let request = AppEndRequest {
                 game_id: game_id.clone(),
@@ -482,6 +561,10 @@ impl BilibiliClient {
             let response_text = response.text().await?;
             log::info!("关闭应用成功: {}", response_text);
         }
+        
+        // 清理game_id
+        self.game_id = None;
+        log::info!("=== 断开连接流程完成 ===");
         
         Ok(())
     }
