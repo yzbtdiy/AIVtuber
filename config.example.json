@@ -1,0 +1,18 @@
+{
+    "id_code": "YOUR_ID_CODE",
+    "app_id": "YOUR_APP_ID",
+    "access_key": "YOUR_ACCESS_KEY",
+    "access_secret": "YOUR_ACCESS_SECRET",
+    "host": "https://live-open.biliapi.com",
+    "openai": {
+        "api_url": "YOUR_OPENAI_API_URL",
+        "api_key": "YOUR_OPENAI_API_KEY",
+        "model": "OPENAI_MODEL_NAME"
+    },
+    "indextts": {
+        "api_url": "YOUR_TTS_API_URL",
+        "audio_paths": [
+            "demo.mp3"
+        ]
+    }
+}

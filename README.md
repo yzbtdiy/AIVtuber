@@ -1,8 +1,11 @@
-# AIVtuber
+# AIVtuber(开发中...)
 
 > 本项目绝大多数代码都由Claude4生成
 
 基于 Tauri + Vue.js + Three VRM + Rust 的哔哩哔哩虚拟主播
+
+![alt text](app.png)
+
 
 ## 项目简介
 
