@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use std::io::Read;
 use flate2::read::ZlibDecoder;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::io::Read;
 
 const HEADER_LENGTH: usize = 16;
 const MAX_BODY_SIZE: usize = 1024 * 1024; // 增加到1MB以支持更大的消息
@@ -30,7 +30,7 @@ impl Proto {
 
     pub fn pack(&mut self) -> Vec<u8> {
         self.packet_len = (self.body.len() + HEADER_LENGTH) as u32;
-        
+
         let mut buf = Vec::new();
         buf.extend_from_slice(&self.packet_len.to_be_bytes());
         buf.extend_from_slice(&self.header_len.to_be_bytes());
@@ -38,7 +38,7 @@ impl Proto {
         buf.extend_from_slice(&self.op.to_be_bytes());
         buf.extend_from_slice(&self.seq.to_be_bytes());
         buf.extend_from_slice(&self.body);
-        
+
         buf
     }
 
@@ -76,23 +76,26 @@ impl Proto {
         match self.ver {
             0 => {
                 // 未压缩的数据
-                String::from_utf8(self.body.clone())
-                    .map_err(|e| format!("解码UTF-8失败: {}", e))
+                String::from_utf8(self.body.clone()).map_err(|e| format!("解码UTF-8失败: {}", e))
             }
             2 => {
                 // zlib压缩的数据
                 let mut decoder = ZlibDecoder::new(&self.body[..]);
                 let mut decompressed = Vec::new();
-                decoder.read_to_end(&mut decompressed)
+                decoder
+                    .read_to_end(&mut decompressed)
                     .map_err(|e| format!("解压缩失败: {}", e))?;
-                
+
                 // 解压缩后的数据可能包含多个消息包，需要递归处理
                 if decompressed.len() >= HEADER_LENGTH {
                     // 检查是否是嵌套的协议包
                     let nested_packet_len = u32::from_be_bytes([
-                        decompressed[0], decompressed[1], decompressed[2], decompressed[3]
+                        decompressed[0],
+                        decompressed[1],
+                        decompressed[2],
+                        decompressed[3],
                     ]);
-                    
+
                     if nested_packet_len as usize == decompressed.len() {
                         // 这是一个嵌套的协议包，递归解析
                         let mut nested_proto = Proto::new();
@@ -100,12 +103,11 @@ impl Proto {
                         return nested_proto.get_body_string();
                     }
                 }
-                
+
                 // 直接解码为字符串
-                String::from_utf8(decompressed)
-                    .map_err(|e| format!("解码UTF-8失败: {}", e))
+                String::from_utf8(decompressed).map_err(|e| format!("解码UTF-8失败: {}", e))
             }
-            _ => Err(format!("不支持的版本: {}", self.ver))
+            _ => Err(format!("不支持的版本: {}", self.ver)),
         }
     }
 }

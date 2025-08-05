@@ -1,7 +1,4 @@
 use serde::{Deserialize, Serialize};
-use crate::handlers::bilibili::{BilibiliConfigRequest, OpenAIConfig};
-use std::fs;
-use std::path::PathBuf;
 
 // OpenAI API 相关数据结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,58 +45,22 @@ pub struct ChatResponse {
     pub content: Option<String>,
 }
 
-// 从配置文件读取OpenAI配置
-async fn load_openai_config() -> Result<OpenAIConfig, String> {
-    let possible_paths = vec![
-        PathBuf::from("config.json"),
-        PathBuf::from("src-tauri/config.json"),
-        PathBuf::from("config/config.json"),
-        PathBuf::from("../config.json"),
-    ];
-    
-    for config_path in possible_paths {
-        if config_path.exists() {
-            match fs::read_to_string(&config_path) {
-                Ok(content) => {
-                    match serde_json::from_str::<BilibiliConfigRequest>(&content) {
-                        Ok(config) => {
-                            if let Some(openai_config) = config.openai {
-                                return Ok(openai_config);
-                            } else {
-                                return Err("配置文件中未找到OpenAI配置".to_string());
-                            }
-                        }
-                        Err(e) => {
-                            return Err(format!("解析配置文件失败: {}", e));
-                        }
-                    }
-                }
-                Err(e) => {
-                    return Err(format!("读取配置文件失败: {}", e));
-                }
-            }
-        }
-    }
-    
-    Err("未找到配置文件".to_string())
-}
-
 #[tauri::command]
 pub async fn chat_with_openai(
     message: String,
     // temperature: Option<f32>,
 ) -> Result<ChatResponse, String> {
     // 从配置文件读取OpenAI配置
-    let openai_config = match load_openai_config().await {
+    let openai_config = match crate::api::config::load_openai_config().await {
         Ok(config) => config,
         Err(e) => {
             log::error!("加载OpenAI配置失败: {}", e);
             return Err(format!("加载OpenAI配置失败: {}", e));
         }
     };
-    
+
     // let temperature = temperature.unwrap_or(0.7);
-    
+
     let openai_request = OpenAIRequest {
         model: openai_config.model.clone(),
         messages: vec![OpenAIMessage {
@@ -108,12 +69,12 @@ pub async fn chat_with_openai(
         }],
         // temperature,
     };
-    
+
     // 创建HTTP客户端
     let client = reqwest::Client::new();
-    
+
     log::info!("发送OpenAI API请求: {:?}", openai_request);
-    
+
     match client
         .post(&openai_config.api_url)
         .header("Content-Type", "application/json")
@@ -127,7 +88,7 @@ pub async fn chat_with_openai(
                 match response.json::<OpenAIResponse>().await {
                     Ok(openai_response) => {
                         log::info!("OpenAI API请求成功");
-                        
+
                         if let Some(choice) = openai_response.choices.first() {
                             Ok(ChatResponse {
                                 success: true,
@@ -145,7 +106,10 @@ pub async fn chat_with_openai(
                 }
             } else {
                 let status = response.status();
-                let error_text = response.text().await.unwrap_or_else(|_| "未知错误".to_string());
+                let error_text = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "未知错误".to_string());
                 log::error!("OpenAI API请求失败: {} - {}", status, error_text);
                 Err(format!("OpenAI API请求失败: {} - {}", status, error_text))
             }

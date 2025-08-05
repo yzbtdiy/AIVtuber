@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
-import type { DanmakuMessage } from '../types/bilibililive.ts';
+import type { DanmakuMessage } from '../types/bilibili.types';
 
 // Props 接收数据
 interface Props {

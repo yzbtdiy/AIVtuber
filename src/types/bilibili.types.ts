@@ -7,6 +7,15 @@ export interface UserInfo {
   uface: string; // 用户头像
 }
 
+// Bilibili配置接口
+export interface BilibiliConfig {
+  id_code: string;
+  app_id: number;
+  access_key: string;
+  access_secret: string;
+  host: string;
+}
+
 // 主播信息
 export interface AnchorInfo {
   uid: number; // 收礼主播uid
@@ -209,3 +218,16 @@ export type BilibiliLiveMessage =
   | LivePlatformMessage<LiveEndMessage>
   | LivePlatformMessage<InteractionEndMessage>;
 
+// 格式化后的消息类型
+export interface FormattedMessage {
+  id: number;
+  timestamp: string;
+  type: 'danmu' | 'gift' | 'superchat' | 'guard' | 'like' | 'enter' | 'system';
+  content: string;
+  user?: {
+    name: string;
+    avatar: string;
+    open_id: string;
+  };
+  raw: BilibiliLiveMessage;
+}

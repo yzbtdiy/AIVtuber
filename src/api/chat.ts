@@ -26,16 +26,13 @@ export interface TtsResponse {
 export function base64ToArrayBuffer(base64: string): ArrayBuffer {
     // 移除可能的 data URL 前缀
     const base64Data = base64.replace(/^data:audio\/[^;]+;base64,/, '');
-
     // 解码base64字符串
     const binaryString = atob(base64Data);
     const length = binaryString.length;
     const bytes = new Uint8Array(length);
-
     for (let i = 0; i < length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
     }
-
     return bytes.buffer;
 }
 

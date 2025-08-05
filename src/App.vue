@@ -20,7 +20,7 @@ body{
   display: flex;
   flex-direction: column;
   /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
-  background-image: url("/background.jpg");
+  background-image: url("/background.webp");
   background-size: cover;
 }
 </style>

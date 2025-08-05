@@ -59,9 +59,6 @@ const emit = defineEmits<{
     maxRows: number;
     minInterval: number;
   }];
-  
-  // 测试弹幕
-  addTestDanmu: [];
 }>();
 
 // 本地弹幕配置状态
@@ -93,10 +90,6 @@ const disconnectBilibili = () => {
   emit('disconnectBilibili');
 };
 
-// 测试弹幕
-const addTestDanmu = () => {
-  emit('addTestDanmu');
-};
 
 // 监听props变化，同步本地配置
 import { watch } from 'vue';
@@ -156,14 +149,7 @@ watch(() => props.danmuConfig, (newConfig) => {
       >
         🗑️
       </button>
-      
-      <button 
-        @click="addTestDanmu" 
-        class="control-btn"
-        title="测试弹幕"
-      >
-        🧪
-      </button>
+    
     </div>
 
     <!-- 滑块控制 -->

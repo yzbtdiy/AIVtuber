@@ -50,7 +50,7 @@ export class VTuberManager {
       100
     )
     // 相机位置：适中距离以显示上半身
-    this.camera.position.set(0, 1, 1.2)
+    this.camera.position.set(0.15, 1, 1.2)
     // 查看点：聚焦在胸部位置
     this.camera.lookAt(0, 0.9, 0)
 
@@ -116,8 +116,8 @@ export class VTuberManager {
       // 调整VRM0.0的旋转
       VRMUtils.rotateVRM0(vrm)
 
-      // 调整模型位置和缩放 - 轻微向下偏移以突出上半身
-      vrm.scene.position.set(0, -0.3, 0)  // 轻微向下偏移，显示上半身为主
+      // 调整模型位置和缩放 - 向右平移并轻微向下偏移以突出上半身
+      vrm.scene.position.set(0.15, -0.3, 0)  // 向右平移0.3单位，轻微向下偏移，显示上半身为主
       vrm.scene.rotation.set(0, 0, 0)
 
       this.vrm = vrm
@@ -266,12 +266,13 @@ export class VTuberManager {
       const weights = AudioAnalyzer.calculateLipSyncWeights(volume, frequencies)
       const expressionManager = this.vrm.expressionManager
 
-      // 应用口型权重 - 使用映射表支持多种命名
+      // 应用口型权重 - 使用映射表支持多种命名，调整权重减小张嘴幅度
       Object.entries(weights).forEach(([baseShape, weight]) => {
         const possibleNames = this.lipSyncMapping[baseShape] || [baseShape]
         for (const name of possibleNames) {
           if (expressionManager.expressionMap[name]) {
-            expressionManager.setValue(name, weight as number)
+            // 将权重乘以0.6来减小嘴巴张开幅度
+            expressionManager.setValue(name, (weight as number) * 0.6)
             break
           }
         }
@@ -317,14 +318,16 @@ export class VTuberManager {
       const weights = AudioAnalyzer.calculateLipSyncWeights(volume, frequencies)
       const expressionManager = this.vrm.expressionManager
 
-      // 应用口型权重 - 使用映射表支持多种命名
+      // 应用口型权重 - 使用映射表支持多种命名，调整权重减小张嘴幅度
       Object.entries(weights).forEach(([baseShape, weight]) => {
         if ((weight as number) > 0) {
           const possibleNames = this.lipSyncMapping[baseShape] || [baseShape]
           for (const name of possibleNames) {
             if (expressionManager.expressionMap[name]) {
-              expressionManager.setValue(name, weight as number)
-              console.log(`Setting ${name} to ${(weight as number).toFixed(3)}`)
+              // 将权重乘以0.6来减小嘴巴张开幅度
+              const adjustedWeight = (weight as number) * 0.6
+              expressionManager.setValue(name, adjustedWeight)
+              console.log(`Setting ${name} to ${adjustedWeight.toFixed(3)}`)
               break
             }
           }
@@ -373,13 +376,14 @@ export class VTuberManager {
       const weights = AudioAnalyzer.calculateLipSyncWeights(volume, frequencies)
       const expressionManager = this.vrm.expressionManager
 
-      // 应用口型权重 - 使用映射表支持多种命名
+      // 应用口型权重 - 使用映射表支持多种命名，调整权重减小张嘴幅度
       Object.entries(weights).forEach(([baseShape, weight]) => {
         if (weight > 0) {
           const possibleNames = this.lipSyncMapping[baseShape] || [baseShape]
           for (const name of possibleNames) {
             if (expressionManager.expressionMap[name]) {
-              expressionManager.setValue(name, weight as number)
+              // 将权重乘以0.6来减小嘴巴张开幅度
+              expressionManager.setValue(name, (weight as number) * 0.6)
               break
             }
           }
@@ -506,12 +510,14 @@ export class VTuberManager {
       weight = Math.abs(phase)
     }
 
-    // 应用目标口型 - 使用映射表
+    // 应用目标口型 - 使用映射表，调整权重减小张嘴幅度
     const possibleNames = this.lipSyncMapping[targetShape] || [targetShape]
     for (const name of possibleNames) {
       if (expressionManager.expressionMap[name]) {
-        expressionManager.setValue(name, weight)
-        console.log(`Setting ${name} to ${weight.toFixed(3)}`)
+        // 将权重乘以0.6来减小嘴巴张开幅度
+        const adjustedWeight = weight * 0.6
+        expressionManager.setValue(name, adjustedWeight)
+        console.log(`Setting ${name} to ${adjustedWeight.toFixed(3)}`)
         break
       }
     }

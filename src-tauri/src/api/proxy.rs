@@ -1,11 +1,7 @@
-use crate::proxy::ProxyServer;
-use crate::handlers::bilibili::BilibiliResponse;
-use std::sync::Arc;
+use crate::api::bilibili::BilibiliResponse;
+use crate::core::ProxyState;
+use crate::services::proxy::ProxyServer;
 use tauri::State;
-use tokio::sync::Mutex;
-
-// 全局状态管理
-pub type ProxyState = Arc<Mutex<Option<ProxyServer>>>;
 
 #[tauri::command]
 pub async fn start_proxy_server(
@@ -13,9 +9,9 @@ pub async fn start_proxy_server(
     port: Option<u16>,
 ) -> Result<BilibiliResponse, String> {
     let port = port.unwrap_or(12345);
-    
+
     let mut proxy_guard = proxy_state.lock().await;
-    
+
     if proxy_guard.is_some() {
         return Ok(BilibiliResponse {
             success: false,
@@ -24,7 +20,7 @@ pub async fn start_proxy_server(
     }
 
     let mut proxy_server = ProxyServer::new();
-    
+
     // 在后台启动代理服务
     tokio::spawn(async move {
         if let Err(e) = proxy_server.start(port).await {
@@ -33,7 +29,7 @@ pub async fn start_proxy_server(
     });
 
     *proxy_guard = Some(ProxyServer::new());
-    
+
     Ok(BilibiliResponse {
         success: true,
         message: format!("代理服务已启动在端口 {}", port),
@@ -45,7 +41,7 @@ pub async fn stop_proxy_server(
     proxy_state: State<'_, ProxyState>,
 ) -> Result<BilibiliResponse, String> {
     let mut proxy_guard = proxy_state.lock().await;
-    
+
     if let Some(mut proxy_server) = proxy_guard.take() {
         proxy_server.stop();
         Ok(BilibiliResponse {
@@ -61,9 +57,7 @@ pub async fn stop_proxy_server(
 }
 
 #[tauri::command]
-pub async fn get_proxy_status(
-    proxy_state: State<'_, ProxyState>,
-) -> Result<bool, String> {
+pub async fn get_proxy_status(proxy_state: State<'_, ProxyState>) -> Result<bool, String> {
     let proxy_guard = proxy_state.lock().await;
     Ok(proxy_guard.is_some())
 }

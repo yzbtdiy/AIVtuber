@@ -1,10 +1,8 @@
-use crate::handlers::openai::{OpenAIMessage, OpenAIRequest, OpenAIResponse};
-use crate::handlers::tts::TtsRequest;
-use crate::handlers::bilibili::{BilibiliConfigRequest, OpenAIConfig, TtsConfig};
-use serde::Serialize;
+use crate::api::config::{load_openai_config, load_tts_config};
+use crate::services::openai::{OpenAIMessage, OpenAIRequest, OpenAIResponse};
+use crate::services::tts::TtsRequest;
 use base64::{Engine as _, engine::general_purpose};
-use std::fs;
-use std::path::PathBuf;
+use serde::Serialize;
 
 // 整合对话和TTS的响应结构
 #[derive(Debug, Serialize)]
@@ -15,85 +13,11 @@ pub struct ChatAndSpeakResponse {
     pub audio_data: Option<String>, // base64编码的音频数据
 }
 
-// 从配置文件读取OpenAI配置
-async fn load_openai_config() -> Result<OpenAIConfig, String> {
-    let possible_paths = vec![
-        PathBuf::from("config.json"),
-        PathBuf::from("src-tauri/config.json"),
-        PathBuf::from("config/config.json"),
-        PathBuf::from("../config.json"),
-    ];
-    
-    for config_path in possible_paths {
-        if config_path.exists() {
-            match fs::read_to_string(&config_path) {
-                Ok(content) => {
-                    match serde_json::from_str::<BilibiliConfigRequest>(&content) {
-                        Ok(config) => {
-                            if let Some(openai_config) = config.openai {
-                                return Ok(openai_config);
-                            } else {
-                                return Err("配置文件中未找到OpenAI配置".to_string());
-                            }
-                        }
-                        Err(e) => {
-                            return Err(format!("解析配置文件失败: {}", e));
-                        }
-                    }
-                }
-                Err(e) => {
-                    return Err(format!("读取配置文件失败: {}", e));
-                }
-            }
-        }
-    }
-    
-    Err("未找到配置文件".to_string())
-}
-
-// 从配置文件读取TTS配置
-async fn load_tts_config() -> Result<TtsConfig, String> {
-    let possible_paths = vec![
-        PathBuf::from("config.json"),
-        PathBuf::from("src-tauri/config.json"),
-        PathBuf::from("config/config.json"),
-        PathBuf::from("../config.json"),
-    ];
-    
-    for config_path in possible_paths {
-        if config_path.exists() {
-            match fs::read_to_string(&config_path) {
-                Ok(content) => {
-                    match serde_json::from_str::<BilibiliConfigRequest>(&content) {
-                        Ok(config) => {
-                            if let Some(tts_config) = config.indextts {
-                                return Ok(tts_config);
-                            } else {
-                                return Err("配置文件中未找到IndexTTS配置".to_string());
-                            }
-                        }
-                        Err(e) => {
-                            return Err(format!("解析配置文件失败: {}", e));
-                        }
-                    }
-                }
-                Err(e) => {
-                    return Err(format!("读取配置文件失败: {}", e));
-                }
-            }
-        }
-    }
-    
-    Err("未找到配置文件".to_string())
-}
-
 #[tauri::command]
-pub async fn chat_and_speak(
-    message: String,
-) -> Result<ChatAndSpeakResponse, String> {
+pub async fn chat_and_speak(message: String) -> Result<ChatAndSpeakResponse, String> {
     // 第一步：从配置文件读取OpenAI配置
     log::info!("开始整合对话和TTS流程，用户消息: {}", message);
-    
+
     let openai_config = match load_openai_config().await {
         Ok(config) => config,
         Err(e) => {
@@ -101,7 +25,7 @@ pub async fn chat_and_speak(
             return Err(format!("加载OpenAI配置失败: {}", e));
         }
     };
-    
+
     // 读取TTS配置
     let tts_config = match load_tts_config().await {
         Ok(config) => config,
@@ -110,7 +34,7 @@ pub async fn chat_and_speak(
             return Err(format!("加载IndexTTS配置失败: {}", e));
         }
     };
-    
+
     let openai_request = OpenAIRequest {
         model: openai_config.model.clone(),
         messages: vec![OpenAIMessage {
@@ -118,12 +42,12 @@ pub async fn chat_and_speak(
             content: message,
         }],
     };
-    
+
     // 创建HTTP客户端
     let client = reqwest::Client::new();
-    
+
     log::info!("发送OpenAI API请求，模型: {}", openai_config.model);
-    
+
     // 调用 OpenAI API
     let chat_content = match client
         .post(&openai_config.api_url)
@@ -138,7 +62,7 @@ pub async fn chat_and_speak(
                 match response.json::<OpenAIResponse>().await {
                     Ok(openai_response) => {
                         log::info!("OpenAI API请求成功");
-                        
+
                         if let Some(choice) = openai_response.choices.first() {
                             log::info!("AI回复: {}", choice.message.content);
                             choice.message.content.clone()
@@ -153,7 +77,10 @@ pub async fn chat_and_speak(
                 }
             } else {
                 let status = response.status();
-                let error_text = response.text().await.unwrap_or_else(|_| "未知错误".to_string());
+                let error_text = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "未知错误".to_string());
                 log::error!("OpenAI API请求失败: {} - {}", status, error_text);
                 return Err(format!("OpenAI API请求失败: {} - {}", status, error_text));
             }
@@ -166,12 +93,12 @@ pub async fn chat_and_speak(
 
     // 第二步：将 AI 回复转换为语音
     log::info!("开始将AI回复转换为语音: {}", chat_content);
-    
+
     let tts_request = TtsRequest {
         text: chat_content.clone(),
         audio_paths: tts_config.audio_paths.clone(),
     };
-    
+
     // 调用 TTS API
     let audio_data = match client
         .post(&tts_config.api_url)
@@ -184,7 +111,7 @@ pub async fn chat_and_speak(
                 match response.bytes().await {
                     Ok(audio_bytes) => {
                         log::info!("TTS请求成功，接收到 {} 字节的音频数据", audio_bytes.len());
-                        
+
                         // 将音频数据编码为base64字符串
                         let audio_base64 = general_purpose::STANDARD.encode(&audio_bytes);
                         Some(audio_base64)
@@ -197,7 +124,10 @@ pub async fn chat_and_speak(
                 }
             } else {
                 let status = response.status();
-                let error_text = response.text().await.unwrap_or_else(|_| "未知错误".to_string());
+                let error_text = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "未知错误".to_string());
                 log::error!("TTS请求失败: {} - {}", status, error_text);
                 // TTS失败不影响对话结果，继续返回文本
                 None

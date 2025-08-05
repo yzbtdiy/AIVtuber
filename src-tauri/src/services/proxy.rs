@@ -30,7 +30,10 @@ impl ProxyServer {
         }
     }
 
-    pub async fn start(&mut self, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn start(
+        &mut self,
+        port: u16,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let (shutdown_sender, shutdown_receiver) = oneshot::channel();
         self.shutdown_sender = Some(shutdown_sender);
 
@@ -44,12 +47,12 @@ impl ProxyServer {
             .and_then(handle_proxy);
 
         // 创建健康检查路由
-        let health_route = warp::path("health")
-            .and(warp::get())
-            .map(|| warp::reply::json(&ProxyResponse {
+        let health_route = warp::path("health").and(warp::get()).map(|| {
+            warp::reply::json(&ProxyResponse {
                 success: true,
                 message: "代理服务正常运行".to_string(),
-            }));
+            })
+        });
 
         // CORS 支持
         let cors = warp::cors()
@@ -64,8 +67,8 @@ impl ProxyServer {
 
         info!("代理服务启动在端口: {}", port);
 
-        let (_, server) = warp::serve(routes)
-            .bind_with_graceful_shutdown(([127, 0, 0, 1], port), async {
+        let (_, server) =
+            warp::serve(routes).bind_with_graceful_shutdown(([127, 0, 0, 1], port), async {
                 shutdown_receiver.await.ok();
             });
 
@@ -112,8 +115,8 @@ async fn handle_proxy(
 
     // 禁止访问本地地址（安全考虑）
     // if let Some(host) = target_url.host_str() {
-    //     if host == "localhost" 
-    //         || host == "127.0.0.1" 
+    //     if host == "localhost"
+    //         || host == "127.0.0.1"
     //         || host.starts_with("192.168.")
     //         || host.starts_with("10.")
     //         || host.starts_with("172.16.")
@@ -149,19 +152,20 @@ async fn handle_proxy(
         Ok(response) => {
             let status = response.status();
             let headers = response.headers().clone();
-            
+
             match response.bytes().await {
                 Ok(body) => {
                     let mut response_builder = warp::http::Response::builder().status(status);
-                    
+
                     // 复制相关的响应头
                     for (name, value) in headers.iter() {
-                        if name == "content-type" 
-                            || name == "content-length" 
+                        if name == "content-type"
+                            || name == "content-length"
                             || name == "cache-control"
                             || name == "expires"
                             || name == "last-modified"
-                            || name == "etag" {
+                            || name == "etag"
+                        {
                             response_builder = response_builder.header(name, value);
                         }
                     }
@@ -169,8 +173,14 @@ async fn handle_proxy(
                     // 添加CORS头
                     response_builder = response_builder
                         .header("access-control-allow-origin", "*")
-                        .header("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS")
-                        .header("access-control-allow-headers", "content-type, authorization");
+                        .header(
+                            "access-control-allow-methods",
+                            "GET, POST, PUT, DELETE, OPTIONS",
+                        )
+                        .header(
+                            "access-control-allow-headers",
+                            "content-type, authorization",
+                        );
 
                     match response_builder.body(body) {
                         Ok(resp) => Ok(Box::new(resp)),

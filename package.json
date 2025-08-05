@@ -13,8 +13,10 @@
     "@pixiv/three-vrm": "^3.4.2",
     "@pixiv/three-vrm-animation": "^3.4.2",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-http": "~2",
+    "@tauri-apps/plugin-log": "~2",
     "@tauri-apps/plugin-opener": "^2",
-    "@types/three": "^0.178.1",
+    "@types/three": "^0.179.0",
     "three": "^0.179.1",
     "vue": "^3.5.18"
   },

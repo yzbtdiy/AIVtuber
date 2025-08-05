@@ -1,8 +1,7 @@
-use crate::bilibili::{BilibiliClient, BilibiliConfig};
+use crate::core::ClientState;
+use crate::services::bilibili::{BilibiliClient, BilibiliConfig};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tauri::{Emitter, State};
-use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenAIConfig {
@@ -18,7 +17,7 @@ pub struct TtsConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BilibiliConfigRequest {
+pub struct AppConfig {
     pub id_code: String,
     pub app_id: u64,
     pub access_key: String,
@@ -34,12 +33,9 @@ pub struct BilibiliResponse {
     pub message: String,
 }
 
-// 全局状态管理
-pub type ClientState = Arc<Mutex<Option<BilibiliClient>>>;
-
 #[tauri::command]
 pub async fn connect_bilibili(
-    config: BilibiliConfigRequest,
+    config: AppConfig,
     client_state: State<'_, ClientState>,
     app_handle: tauri::AppHandle,
 ) -> Result<BilibiliResponse, String> {
@@ -52,13 +48,15 @@ pub async fn connect_bilibili(
     };
 
     let mut client = BilibiliClient::new(bili_config);
-    
+
     match client.connect().await {
         Ok(receiver) => {
             // 启动消息处理任务
             let app_handle_clone = app_handle.clone();
             tokio::spawn(async move {
-                let mut receiver: tokio::sync::mpsc::UnboundedReceiver<crate::proto::BilibiliMessage> = receiver;
+                let mut receiver: tokio::sync::mpsc::UnboundedReceiver<
+                    crate::core::proto::BilibiliMessage,
+                > = receiver;
                 while let Some(message) = receiver.recv().await {
                     // 发送消息到前端
                     if let Err(e) = app_handle_clone.emit("bilibili-message", &message) {
@@ -69,7 +67,7 @@ pub async fn connect_bilibili(
 
             // 保存客户端状态
             *client_state.lock().await = Some(client);
-            
+
             Ok(BilibiliResponse {
                 success: true,
                 message: "连接成功".to_string(),
@@ -107,9 +105,7 @@ pub async fn disconnect_bilibili(
 }
 
 #[tauri::command]
-pub async fn get_connection_status(
-    client_state: State<'_, ClientState>,
-) -> Result<bool, String> {
+pub async fn get_connection_status(client_state: State<'_, ClientState>) -> Result<bool, String> {
     let client_guard = client_state.lock().await;
     Ok(client_guard.is_some())
 }

@@ -1,3 +1,9 @@
+import type { AudioAnalysisConfig } from './types'
+
+/**
+ * 音频分析器
+ * 负责处理音频输入和分析，生成口型同步数据
+ */
 export class AudioAnalyzer {
   private audioContext: AudioContext | null = null
   private analyser: AnalyserNode | null = null
@@ -6,16 +12,32 @@ export class AudioAnalyzer {
   private animationFrame: number | null = null
   private currentSource: AudioBufferSourceNode | null = null
 
-  async init() {
+  // 默认配置
+  private readonly defaultConfig: AudioAnalysisConfig = {
+    fftSize: 256,
+    smoothingTimeConstant: 0.8,
+    minDecibels: -90,
+    maxDecibels: -10
+  }
+
+  /**
+   * 初始化音频分析器
+   */
+  async init(config: Partial<AudioAnalysisConfig> = {}): Promise<boolean> {
     try {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
       this.analyser = this.audioContext.createAnalyser()
-      this.analyser.fftSize = 256
+      
+      const finalConfig = { ...this.defaultConfig, ...config }
+      this.analyser.fftSize = finalConfig.fftSize
+      this.analyser.smoothingTimeConstant = finalConfig.smoothingTimeConstant
+      this.analyser.minDecibels = finalConfig.minDecibels
+      this.analyser.maxDecibels = finalConfig.maxDecibels
 
       const bufferLength = this.analyser.frequencyBinCount
       this.dataArray = new Uint8Array(bufferLength)
 
-      console.log('AudioAnalyzer initialized')
+      console.log('AudioAnalyzer initialized with config:', finalConfig)
       return true
     } catch (error) {
       console.error('Failed to initialize AudioAnalyzer:', error)

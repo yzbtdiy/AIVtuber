@@ -1,15 +1,47 @@
+import type { EmotionType } from './types'
+
+// 情感分析结果接口
+export interface EmotionResult {
+  dominantEmotion: string
+  confidence: number
+  emotions: Record<string, number>
+  intensity: number
+  foundKeywords: string[]
+  hasEmotionMarkers: boolean
+}
+
+/**
+ * 情感分析器
+ * 负责分析文本内容并识别情感，用于控制VTuber表情
+ */
 export class EmotionAnalyzer {
-  private static emotionKeywords = {
-    happy: ['高兴', '开心', '快乐', '愉快', '兴奋', '喜悦', '欢喜', '高兴', '乐', '哈哈', '😄', '😊', '😃', '🎉'],
+  // 情感关键词映射
+  private static readonly emotionKeywords: Record<EmotionType, string[]> = {
+    happy: ['高兴', '开心', '快乐', '愉快', '兴奋', '喜悦', '欢喜', '乐', '哈哈', '😄', '😊', '😃', '🎉'],
     sad: ['难过', '伤心', '悲伤', '沮丧', '失落', '郁闷', '痛苦', '哭', '😢', '😭', '😞', '☹️'],
     angry: ['生气', '愤怒', '恼火', '气愤', '暴怒', '怒', '烦躁', '😠', '😡', '🤬'],
     surprised: ['惊讶', '震惊', '惊喜', '意外', '吃惊', '诧异', '😲', '😮', '🤯', '😱'],
     neutral: ['平静', '冷静', '淡定', '平常', '正常', '一般', '还好', '🙂', '😐'],
-    confused: ['困惑', '疑惑', '迷茫', '不解', '奇怪', '😕', '🤔', '😵'],
     excited: ['兴奋', '激动', '热情', '狂欢', '激昂', '🤩', '😆', '🥳'],
-    worried: ['担心', '忧虑', '焦虑', '不安', '紧张', '😟', '😰', '😨'],
-    love: ['爱', '喜欢', '心动', '恋爱', '甜蜜', '💕', '😍', '🥰', '💖'],
-    tired: ['累', '疲惫', '困', '疲劳', '乏力', '😴', '😪', '🥱']
+    calm: ['放松', '舒缓', '宁静', '安详', '轻松', '�', '🧘']
+  }
+
+  // VRM表情映射
+  private static readonly vrmExpressionMap: Record<EmotionType, string> = {
+    happy: 'happy',
+    sad: 'sad',
+    angry: 'angry',
+    surprised: 'surprised',
+    neutral: 'neutral',
+    excited: 'happy', // 兴奋映射到高兴
+    calm: 'relaxed'   // 平静映射到放松
+  }
+
+  /**
+   * 获取VRM表情名称
+   */
+  static getVRMExpression(emotion: string): string {
+    return this.vrmExpressionMap[emotion as EmotionType] || 'neutral'
   }
 
   /**
@@ -18,7 +50,7 @@ export class EmotionAnalyzer {
    * @returns 情感分析结果
    */
   static analyzeEmotion(text: string): EmotionResult {
-    const emotions: { [key: string]: number } = {}
+    const emotions: Record<string, number> = {}
     const foundKeywords: string[] = []
 
     // 初始化情感分数
@@ -66,36 +98,16 @@ export class EmotionAnalyzer {
     // 计算情感强度 (0-1)
     const totalKeywords = foundKeywords.length
     const intensity = Math.min(totalKeywords / 3, 1) // 最多3个关键词达到最大强度
+    const confidence = maxScore > 0 ? maxScore / Math.max(1, totalKeywords) : 0
 
     return {
       dominantEmotion,
+      confidence,
       intensity,
       emotions,
       foundKeywords,
       hasEmotionMarkers: emotionMarkers !== null
     }
-  }
-
-  /**
-   * 从情感分析结果获取VRM表情名称
-   * @param emotion 情感名称
-   * @returns VRM表情名称
-   */
-  static getVRMExpression(emotion: string): string {
-    const expressionMap: { [key: string]: string } = {
-      happy: 'happy',
-      excited: 'happy',
-      love: 'happy',
-      sad: 'sad',
-      worried: 'sad',
-      tired: 'sad',
-      angry: 'angry',
-      surprised: 'surprised',
-      confused: 'surprised',
-      neutral: 'relaxed'
-    }
-
-    return expressionMap[emotion] || 'relaxed'
   }
 
   /**
@@ -145,7 +157,7 @@ export class EmotionAnalyzer {
    * @returns 带有情感标记的文本
    */
   static addEmotionMarker(text: string, emotion: string): string {
-    const emotionNames: { [key: string]: string } = {
+    const emotionNames: Record<string, string> = {
       happy: '高兴',
       sad: '难过',
       angry: '生气',
@@ -156,12 +168,4 @@ export class EmotionAnalyzer {
     const emotionName = emotionNames[emotion] || emotion
     return `[${emotionName}]${text}`
   }
-}
-
-export interface EmotionResult {
-  dominantEmotion: string
-  intensity: number
-  emotions: { [key: string]: number }
-  foundKeywords: string[]
-  hasEmotionMarkers: boolean
 }

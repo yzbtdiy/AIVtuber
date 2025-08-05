@@ -1,36 +1,38 @@
-mod proto;
-mod bilibili;
-mod proxy;
-mod handlers;
+mod api;
+mod core;
+mod services;
 
-use handlers::{ClientState, ProxyState};
+use core::{ClientState, ProxyState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 初始化日志，设置日志级别
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp_secs()
-        .init();
-    
-    log::info!("AIVtuber 应用启动中...");
-    
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(
+            tauri_plugin_log::Builder::default()
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
         .manage(ClientState::default())
         .manage(ProxyState::default())
         .invoke_handler(tauri::generate_handler![
-            handlers::connect_bilibili,
-            handlers::disconnect_bilibili,
-            handlers::get_connection_status,
-            handlers::load_config_from_file,
-            handlers::save_config_to_file,
-            handlers::start_proxy_server,
-            handlers::stop_proxy_server,
-            handlers::get_proxy_status,
-            handlers::text_to_speech,
-            handlers::chat_with_openai,
-            handlers::chat_and_speak
+            api::connect_bilibili,
+            api::disconnect_bilibili,
+            api::get_connection_status,
+            api::load_config_from_file,
+            api::save_config_to_file,
+            api::start_proxy_server,
+            api::stop_proxy_server,
+            api::get_proxy_status,
+            services::text_to_speech,
+            services::chat_with_openai,
+            api::chat_and_speak
         ])
+        .setup(|_app| {
+            log::info!("AIVtuber 应用启动完成");
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

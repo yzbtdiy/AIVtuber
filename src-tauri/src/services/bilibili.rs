@@ -1,4 +1,4 @@
-use crate::proto::{Proto, BilibiliMessage, UnknownMessage};
+use crate::core::{BilibiliMessage, Proto, UnknownMessage};
 use futures_util::{SinkExt, StreamExt};
 use hmac::{Hmac, Mac};
 use reqwest::Client;
@@ -10,8 +10,8 @@ use std::error::Error;
 use std::fmt;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::mpsc;
 use tokio::sync::broadcast;
+use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
@@ -158,7 +158,18 @@ pub struct BilibiliClient {
     // 用于控制心跳任务停止的取消令牌
     heartbeat_cancel_tx: Option<broadcast::Sender<()>>,
     // 用于保存WebSocket连接，便于主动关闭
-    ws_sink: Option<Arc<tokio::sync::Mutex<futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, Message>>>>,
+    ws_sink: Option<
+        Arc<
+            tokio::sync::Mutex<
+                futures_util::stream::SplitSink<
+                    tokio_tungstenite::WebSocketStream<
+                        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+                    >,
+                    Message,
+                >,
+            >,
+        >,
+    >,
 }
 
 impl BilibiliClient {
@@ -172,7 +183,9 @@ impl BilibiliClient {
         }
     }
 
-    pub async fn connect(&mut self) -> Result<mpsc::UnboundedReceiver<BilibiliMessage>, BilibiliError> {
+    pub async fn connect(
+        &mut self,
+    ) -> Result<mpsc::UnboundedReceiver<BilibiliMessage>, BilibiliError> {
         log::info!("=== 开始连接哔哩哔哩直播间 ===");
         let (sender, receiver) = mpsc::unbounded_channel();
 
@@ -180,22 +193,24 @@ impl BilibiliClient {
         log::info!("正在获取WebSocket连接信息...");
         let (ws_url, auth_body) = self.get_websocket_info().await?;
         log::info!("WebSocket URL: {}", ws_url);
-        
+
         // 连接websocket
         log::info!("正在连接WebSocket...");
         let url = Url::parse(&ws_url)?;
         let (ws_stream, _) = connect_async(url).await?;
         log::info!("WebSocket连接成功！");
-        
+
         // 启动各种任务
         self.start_tasks(ws_stream, auth_body, sender).await?;
-        
+
         Ok(receiver)
     }
 
     async fn start_tasks(
         &mut self,
-        ws_stream: tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+        ws_stream: tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
         auth_body: String,
         sender: mpsc::UnboundedSender<BilibiliMessage>,
     ) -> Result<(), BilibiliError> {
@@ -211,7 +226,7 @@ impl BilibiliClient {
         auth_proto.body = auth_body.into_bytes();
         auth_proto.op = 7;
         let auth_packet = auth_proto.pack();
-        
+
         ws_sink.send(Message::Binary(auth_packet)).await?;
         log::info!("认证信息发送成功！");
 
@@ -228,7 +243,7 @@ impl BilibiliClient {
                         let mut proto = Proto::new();
                         proto.op = 2;
                         let packet = proto.pack();
-                        
+
                         let mut sink = ws_sink_clone.lock().await;
                         if let Err(e) = sink.send(Message::Binary(packet)).await {
                             log::error!("发送WebSocket心跳失败: {}", e);
@@ -257,7 +272,7 @@ impl BilibiliClient {
                         let heartbeat_req = HeartbeatRequest {
                             game_id: game_id.clone(),
                         };
-                        
+
                         match Self::send_app_heartbeat(&client, &config, &heartbeat_req).await {
                             Ok(_) => log::info!("发送应用心跳成功"),
                             Err(e) => {
@@ -318,11 +333,16 @@ impl BilibiliClient {
         sender: &mpsc::UnboundedSender<BilibiliMessage>,
     ) -> Result<(), BilibiliError> {
         log::debug!("收到原始数据，长度: {}", data.len());
-        
+
         let mut proto = Proto::new();
         proto.unpack(data).map_err(|e| BilibiliError::from(e))?;
 
-        log::debug!("解析协议包: op={}, ver={}, len={}", proto.op, proto.ver, proto.packet_len);
+        log::debug!(
+            "解析协议包: op={}, ver={}, len={}",
+            proto.op,
+            proto.ver,
+            proto.packet_len
+        );
 
         match proto.op {
             3 => {
@@ -331,7 +351,9 @@ impl BilibiliClient {
             }
             8 => {
                 // 认证回复
-                let body_str = proto.get_body_string().map_err(|e| BilibiliError::from(e))?;
+                let body_str = proto
+                    .get_body_string()
+                    .map_err(|e| BilibiliError::from(e))?;
                 log::info!("认证回复: {}", body_str);
                 let auth_resp: Value = serde_json::from_str(&body_str)?;
                 if auth_resp["code"].as_i64() == Some(0) {
@@ -342,30 +364,32 @@ impl BilibiliClient {
             }
             5 => {
                 // 业务消息
-                let body_str = proto.get_body_string().map_err(|e| BilibiliError::from(e))?;
+                let body_str = proto
+                    .get_body_string()
+                    .map_err(|e| BilibiliError::from(e))?;
                 log::info!("收到业务消息: {}", body_str);
-                
+
                 // 首先尝试解析为通用JSON
                 match serde_json::from_str::<Value>(&body_str) {
                     Ok(json_value) => {
-                        // log::info!("JSON解析成功，完整消息: {}", 
+                        // log::info!("JSON解析成功，完整消息: {}",
                         //     serde_json::to_string_pretty(&json_value).unwrap_or(json_value.to_string()));
-                        
+
                         // 提取消息类型
                         if let Some(cmd) = json_value.get("cmd").and_then(|v| v.as_str()) {
                             log::info!("消息类型: {}", cmd);
                         }
-                        
+
                         // 尝试解析为BilibiliMessage
                         match serde_json::from_str::<BilibiliMessage>(&body_str) {
                             Ok(message) => {
                                 log::info!("成功解析为BilibiliMessage: {:?}", message);
-                                
+
                                 // 检查是否是交互结束消息
                                 if matches!(&message, BilibiliMessage::InteractionEnd { .. }) {
                                     log::info!("收到交互结束消息，连接即将断开");
                                 }
-                                
+
                                 if sender.send(message).is_err() {
                                     log::error!("发送消息到通道失败");
                                 } else {
@@ -374,14 +398,22 @@ impl BilibiliClient {
                             }
                             Err(e) => {
                                 log::warn!("无法解析为BilibiliMessage: {}", e);
-                                
+
                                 // 尝试解析为通用消息
                                 match serde_json::from_str::<UnknownMessage>(&body_str) {
                                     Ok(unknown_msg) => {
-                                        log::info!("解析为未知消息类型: cmd={}, data={}", unknown_msg.cmd, unknown_msg.data);
+                                        log::info!(
+                                            "解析为未知消息类型: cmd={}, data={}",
+                                            unknown_msg.cmd,
+                                            unknown_msg.data
+                                        );
                                     }
                                     Err(e2) => {
-                                        log::error!("完全无法解析消息: {}, 原始数据: {}", e2, body_str);
+                                        log::error!(
+                                            "完全无法解析消息: {}, 原始数据: {}",
+                                            e2,
+                                            body_str
+                                        );
                                     }
                                 }
                             }
@@ -412,26 +444,30 @@ impl BilibiliClient {
             code: self.config.id_code.clone(),
             app_id: self.config.app_id,
         };
-        
+
         let body = serde_json::to_string(&request)?;
         let headers = self.sign(&body)?;
-        
-        let response = self.client
+
+        let response = self
+            .client
             .post(&url)
             .headers(headers)
             .body(body)
             .send()
             .await?;
-        
+
         let response_text = response.text().await?;
         let response_data: AppStartResponse = serde_json::from_str(&response_text)?;
-        
+
         if response_data.code != 0 {
-            return Err(BilibiliError::from(format!("获取WebSocket信息失败: {}", response_data.message)));
+            return Err(BilibiliError::from(format!(
+                "获取WebSocket信息失败: {}",
+                response_data.message
+            )));
         }
-        
+
         self.game_id = Some(response_data.data.game_info.game_id);
-        
+
         Ok((
             response_data.data.websocket_info.wss_link[0].clone(),
             response_data.data.websocket_info.auth_body,
@@ -446,21 +482,19 @@ impl BilibiliClient {
         let url = format!("{}/v2/app/heartbeat", config.host);
         let body = serde_json::to_string(request)?;
         let headers = Self::sign_static(config, &body)?;
-        
-        let response = client
-            .post(&url)
-            .headers(headers)
-            .body(body)
-            .send()
-            .await?;
-        
+
+        let response = client.post(&url).headers(headers).body(body).send().await?;
+
         let response_text = response.text().await?;
         let response_data: Value = serde_json::from_str(&response_text)?;
-        
+
         if response_data["code"].as_i64() != Some(0) {
-            return Err(BilibiliError::from(format!("应用心跳失败: {}", response_text)));
+            return Err(BilibiliError::from(format!(
+                "应用心跳失败: {}",
+                response_text
+            )));
         }
-        
+
         Ok(())
     }
 
@@ -468,19 +502,20 @@ impl BilibiliClient {
         Self::sign_static(&self.config, params)
     }
 
-    fn sign_static(config: &BilibiliConfig, params: &str) -> Result<reqwest::header::HeaderMap, BilibiliError> {
+    fn sign_static(
+        config: &BilibiliConfig,
+        params: &str,
+    ) -> Result<reqwest::header::HeaderMap, BilibiliError> {
         let mut headers = reqwest::header::HeaderMap::new();
-        
+
         // 计算MD5
         let digest = md5::compute(params);
         let md5_hex = format!("{:x}", digest);
-        
+
         // 生成时间戳和随机数
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_secs();
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         let nonce = rand::random::<u64>();
-        
+
         // 构建header map
         let mut header_map = HashMap::new();
         header_map.insert("x-bili-timestamp", timestamp.to_string());
@@ -489,22 +524,22 @@ impl BilibiliClient {
         header_map.insert("x-bili-accesskeyid", config.access_key.clone());
         header_map.insert("x-bili-signature-version", "1.0".to_string());
         header_map.insert("x-bili-content-md5", md5_hex.clone());
-        
+
         // 排序并构建签名字符串
         let mut sorted_keys: Vec<_> = header_map.keys().collect();
         sorted_keys.sort();
-        
+
         let mut header_str = String::new();
         for key in sorted_keys {
             header_str.push_str(&format!("{}:{}\n", key, header_map[key]));
         }
         header_str = header_str.trim_end_matches('\n').to_string();
-        
+
         // 生成HMAC-SHA256签名
         let mut mac = HmacSha256::new_from_slice(config.access_secret.as_bytes())?;
         mac.update(header_str.as_bytes());
         let signature = hex::encode(mac.finalize().into_bytes());
-        
+
         // 设置HTTP headers
         headers.insert("x-bili-timestamp", timestamp.to_string().parse()?);
         headers.insert("x-bili-signature-method", "HMAC-SHA256".parse()?);
@@ -515,13 +550,13 @@ impl BilibiliClient {
         headers.insert("Authorization", signature.parse()?);
         headers.insert("Content-Type", "application/json".parse()?);
         headers.insert("Accept", "application/json".parse()?);
-        
+
         Ok(headers)
     }
 
     pub async fn close(&mut self) -> Result<(), BilibiliError> {
         log::info!("=== 开始断开连接流程 ===");
-        
+
         // 首先停止心跳任务
         if let Some(cancel_tx) = self.heartbeat_cancel_tx.take() {
             log::info!("正在停止心跳任务...");
@@ -547,25 +582,26 @@ impl BilibiliClient {
                 game_id: game_id.clone(),
                 app_id: self.config.app_id,
             };
-            
+
             let body = serde_json::to_string(&request)?;
             let headers = self.sign(&body)?;
-            
-            let response = self.client
+
+            let response = self
+                .client
                 .post(&url)
                 .headers(headers)
                 .body(body)
                 .send()
                 .await?;
-            
+
             let response_text = response.text().await?;
             log::info!("关闭应用成功: {}", response_text);
         }
-        
+
         // 清理game_id
         self.game_id = None;
         log::info!("=== 断开连接流程完成 ===");
-        
+
         Ok(())
     }
 }

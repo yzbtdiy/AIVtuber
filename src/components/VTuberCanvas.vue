@@ -1,48 +1,29 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { VTuberManager } from '../utils/vrm/VTuberManager'
+import { useVTuberManager } from '../composables/useVTuberManager'
 
 const canvasRef = ref<HTMLCanvasElement>()
-const isLoading = ref(true)
-let vtuberManager: VTuberManager | null = null
+
+// 使用 VTuber Manager composable
+const {
+  isLoading,
+  isInitialized,
+  initVTuber,
+  loadModel,
+  loadIdleAnimation,
+  setEmotion,
+  testLipSync,
+  startRealTimeLipSync,
+  stopLipSync,
+  playGesture,
+  resetPose,
+  processText,
+  playAudioFile,
+  playAudio,
+  dispose
+} = useVTuberManager()
 
 // 公开方法供父组件调用
-const setEmotion = (emotion: string) => {
-  vtuberManager?.setEmotion(emotion)
-}
-
-const testLipSync = () => {
-  vtuberManager?.testLipSync()
-}
-
-const startRealTimeLipSync = () => {
-  vtuberManager?.startRealTimeLipSync()
-}
-
-const stopLipSync = () => {
-  vtuberManager?.stopLipSync()
-}
-
-const playGesture = (gesture: string) => {
-  vtuberManager?.playGesture(gesture)
-}
-
-const resetPose = () => {
-  vtuberManager?.resetPose()
-}
-
-const processText = (text: string) => {
-  vtuberManager?.processText(text)
-}
-
-const playAudioFile = (audioUrl: string) => {
-  vtuberManager?.playAudioFile(audioUrl)
-}
-
-const playAudio = (audioData: ArrayBuffer) => {
-  vtuberManager?.playAudio(audioData)
-}
-
 defineExpose({
   setEmotion,
   testLipSync,
@@ -53,30 +34,28 @@ defineExpose({
   processText,
   playAudioFile,
   playAudio,
-  playIdleAnimation: () => vtuberManager?.playIdleAnimation(),
-  stopIdleAnimation: () => vtuberManager?.stopIdleAnimation(),
-  toggleIdleAnimation: () => vtuberManager?.toggleIdleAnimation()
+  isLoading,
+  isInitialized
 })
 
+// 组件生命周期
 onMounted(async () => {
   await nextTick()
 
   if (canvasRef.value) {
     try {
-      vtuberManager = new VTuberManager()
-      await vtuberManager.init(canvasRef.value)
-      await vtuberManager.loadModel('/vroid.vrm')
-      await vtuberManager.loadIdleAnimation('/idle.vrma')
-      isLoading.value = false
+      await initVTuber(canvasRef.value)
+      await loadModel('/vroid.vrm')
+      await loadIdleAnimation('/idle.vrma')
+      console.log('VTuber Canvas 初始化完成')
     } catch (error) {
-      console.error('Failed to initialize VTuber:', error)
-      isLoading.value = false
+      console.error('VTuber Canvas 初始化失败:', error)
     }
   }
 })
 
 onUnmounted(() => {
-  vtuberManager?.dispose()
+  dispose()
 })
 </script>
 
