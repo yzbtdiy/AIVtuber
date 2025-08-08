@@ -1,6 +1,6 @@
 import { ref } from 'vue'
-import type { 
-  BilibiliLiveMessage, 
+import type {
+  BilibiliLiveMessage,
   FormattedMessage,
   DanmakuMessage,
   GiftMessage,
@@ -14,7 +14,7 @@ import type {
   InteractionEndMessage
 } from '../types/bilibili.types'
 import { LivePlatformCmd } from '../types/bilibili.types'
-import { chatAndSpeakIntegrated, base64ToArrayBuffer } from '../api/chat'
+import { chatAndSpeak, bytesToArrayBuffer } from '../api/chat'
 
 export function useMessageHandler() {
   // 消息状态
@@ -166,9 +166,9 @@ export function useMessageHandler() {
     playAudio: (audioData: ArrayBuffer) => void
   ) => {
     try {
-      const chatResp = await chatAndSpeakIntegrated(danmuData.msg)
+      const chatResp = await chatAndSpeak(danmuData.msg)
       if (chatResp.audio_data) {
-        playAudio(base64ToArrayBuffer(chatResp.audio_data))
+        playAudio(bytesToArrayBuffer(chatResp.audio_data))
       }
     } catch (error) {
       console.error('处理弹幕AI回复失败:', error)
@@ -237,7 +237,7 @@ export function useMessageHandler() {
     // 状态
     messages,
     danmus,
-    
+
     // 方法
     formatMessage,
     processDanmuMessage,

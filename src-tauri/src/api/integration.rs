@@ -1,7 +1,6 @@
 use crate::api::config::{load_openai_config, load_tts_config};
 use crate::services::openai::{OpenAIMessage, OpenAIRequest, OpenAIResponse};
 use crate::services::tts::TtsRequest;
-use base64::{Engine as _, engine::general_purpose};
 use serde::Serialize;
 
 // 整合对话和TTS的响应结构
@@ -10,7 +9,7 @@ pub struct ChatAndSpeakResponse {
     pub success: bool,
     pub message: String,
     pub chat_content: Option<String>,
-    pub audio_data: Option<String>, // base64编码的音频数据
+    pub audio_data: Option<Vec<u8>>, // 直接返回音频字节数组
 }
 
 #[tauri::command]
@@ -95,13 +94,18 @@ pub async fn chat_and_speak(message: String) -> Result<ChatAndSpeakResponse, Str
     log::info!("开始将AI回复转换为语音: {}", chat_content);
 
     let tts_request = TtsRequest {
-        text: chat_content.clone(),
-        audio_paths: tts_config.audio_paths.clone(),
+        model: tts_config.model.clone(),
+        input: chat_content.clone(),
+        voice: tts_config.voice.clone(),
+        response_format: tts_config.response_format.clone(),
+        speed: tts_config.speed.clone(),
     };
 
     // 调用 TTS API
     let audio_data = match client
         .post(&tts_config.api_url)
+        .header("Content-Type", "application/json")
+        .header("Authorization", &tts_config.authorization)
         .json(&tts_request)
         .send()
         .await
@@ -112,9 +116,8 @@ pub async fn chat_and_speak(message: String) -> Result<ChatAndSpeakResponse, Str
                     Ok(audio_bytes) => {
                         log::info!("TTS请求成功，接收到 {} 字节的音频数据", audio_bytes.len());
 
-                        // 将音频数据编码为base64字符串
-                        let audio_base64 = general_purpose::STANDARD.encode(&audio_bytes);
-                        Some(audio_base64)
+                        // 直接返回字节数组
+                        Some(audio_bytes.to_vec())
                     }
                     Err(e) => {
                         log::error!("读取TTS音频数据失败: {}", e);

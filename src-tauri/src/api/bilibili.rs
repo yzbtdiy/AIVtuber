@@ -13,7 +13,11 @@ pub struct OpenAIConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TtsConfig {
     pub api_url: String,
-    pub audio_paths: Vec<String>,
+    pub model: String,
+    pub voice: String,
+    pub response_format: String,
+    pub speed: String,
+    pub authorization: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,18 +1,20 @@
-use base64::{Engine as _, engine::general_purpose};
 use serde::{Deserialize, Serialize};
 
 // TTS相关数据结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TtsRequest {
-    pub text: String,
-    pub audio_paths: Vec<String>,
+    pub model: String,
+    pub input: String,
+    pub voice: String,
+    pub response_format: String,
+    pub speed: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct TtsResponse {
     pub success: bool,
     pub message: String,
-    pub audio_data: Option<String>, // 改为base64编码的字符串
+    pub audio_data: Option<Vec<u8>>, // 直接返回字节数组
 }
 
 #[tauri::command]
@@ -27,8 +29,11 @@ pub async fn text_to_speech(text: String) -> Result<TtsResponse, String> {
     };
 
     let tts_request = TtsRequest {
-        text,
-        audio_paths: tts_config.audio_paths.clone(),
+        model: tts_config.model.clone(),
+        input: text,
+        voice: tts_config.voice.clone(),
+        response_format: tts_config.response_format.clone(),
+        speed: tts_config.speed.clone(),
     };
 
     // 创建HTTP客户端
@@ -38,7 +43,8 @@ pub async fn text_to_speech(text: String) -> Result<TtsResponse, String> {
 
     match client
         .post(&tts_config.api_url)
-        // .header("Content-Type", "application/json")
+        .header("Content-Type", "application/json")
+        .header("Authorization", &tts_config.authorization)
         .json(&tts_request)
         .send()
         .await
@@ -49,13 +55,11 @@ pub async fn text_to_speech(text: String) -> Result<TtsResponse, String> {
                     Ok(audio_bytes) => {
                         log::info!("TTS请求成功，接收到 {} 字节的音频数据", audio_bytes.len());
 
-                        // 将音频数据编码为base64字符串
-                        let audio_base64 = general_purpose::STANDARD.encode(&audio_bytes);
-
+                        // 直接返回字节数组
                         Ok(TtsResponse {
                             success: true,
                             message: "文本转语音成功".to_string(),
-                            audio_data: Some(audio_base64),
+                            audio_data: Some(audio_bytes.to_vec()),
                         })
                     }
                     Err(e) => {

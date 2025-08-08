@@ -11,8 +11,10 @@
     },
     "indextts": {
         "api_url": "YOUR_TTS_API_URL",
-        "audio_paths": [
-            "demo.mp3"
-        ]
+        "model": "tts-1",
+        "voice": "YOUR_VOICE_NAME",
+        "response_format": "wav",
+        "speed": "1.0",
+        "authorization": "Bearer YOUR_TTS_API_KEY"
     }
 }
